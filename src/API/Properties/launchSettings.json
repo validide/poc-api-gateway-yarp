@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "API": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:11080",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true,
+      "launchUrl": "api/home"
+    }
+  }
+}
