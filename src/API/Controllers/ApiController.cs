@@ -22,6 +22,11 @@ namespace API.Controllers
                 result[$"headers.{header.Key}"] = header.Value;
             }
 
+            foreach (var cookie in Request.Cookies.OrderBy(o => o.Key))
+            {
+                result[$"cookies.{cookie.Key}"] = cookie.Value;
+            }
+
             return result;
         }
     }
