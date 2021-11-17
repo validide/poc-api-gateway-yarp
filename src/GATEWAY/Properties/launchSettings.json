@@ -3,7 +3,7 @@
     "GATEWAY": {
       "commandName": "Project",
       "launchBrowser": true,
-      "applicationUrl": "http://localhost:12080",
+      "applicationUrl": "https://localhost:12080",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },

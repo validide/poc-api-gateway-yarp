@@ -1,9 +1,16 @@
-﻿using Microsoft.AspNetCore.Authentication;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
-const string Id4Authority = "https://demo.identityserver.io/";
-const string Id5Authority = "https://demo.duendesoftware.com/";
+const string Id4Authority = "https://demo.identityserver.io";
+const string Id5Authority = "https://demo.duendesoftware.com";
+
+JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
+JwtSecurityTokenHandler.DefaultInboundClaimFilter.Clear();
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services
@@ -20,131 +27,50 @@ builder.Services
     });
 
 builder.Services
-    .AddAuthentication(options =>
-    {
-        //options.DefaultScheme = "id4-cookie";
-        //options.DefaultChallengeScheme = "id4-cookie-oidc";
-    })
-    .AddCookie("id4-cookie", options =>
-    {
-        options.CookieManager = new ChunkingCookieManager();
-        options.Cookie.SameSite = SameSiteMode.Strict;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    })
-    .AddOpenIdConnect("id4-cookie-oidc", options =>
-    {
-        options.NonceCookie.Name = "id4-cookie-oidc-nonce";
-        options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.CorrelationCookie.Name = "id4-cookie-oidc-correlation";
-        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-
-        options.SignInScheme = "id4-cookie";
-        options.Authority = Id4Authority;
-
-        options.ClientId = "interactive.public";
-        // options.ClientSecret = "secret";
-        
-
-        // code flow + PKCE (PKCE is turned on by default)
-        options.ResponseType = "code";
-        options.UsePkce = true;
-
-        options.Scope.Clear();
-        options.Scope.Add("openid");
-        options.Scope.Add("profile");
-        options.Scope.Add("email");
-
-        // keeps id_token smaller
-        options.GetClaimsFromUserInfoEndpoint = true;
-        options.SaveTokens = true;
-
-    })
-    .AddJwtBearer("id4-bearer", options =>
-    {
-        options.Authority = Id4Authority;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateAudience = false
-        };
-    })
-    .AddCookie("id5-cookie", options =>
-    {
-        options.CookieManager = new ChunkingCookieManager();
-        options.Cookie.SameSite = SameSiteMode.Strict;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    })
-    .AddOpenIdConnect("id5-cookie-oidc", options =>
-    {
-        options.NonceCookie.Name = "id5-cookie-oidc-nonce";
-        options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.CorrelationCookie.Name = "id5-cookie-oidc-correlation";
-        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-
-        options.SignInScheme = "id5-cookie";
-        options.Authority = Id5Authority;
-
-        options.ClientId = "interactive.public";
-        // options.ClientSecret = "secret";
-
-
-        // code flow + PKCE (PKCE is turned on by default)
-        options.ResponseType = "code";
-        options.UsePkce = true;
-
-        options.Scope.Clear();
-        options.Scope.Add("openid");
-        options.Scope.Add("profile");
-        options.Scope.Add("email");
-
-        // keeps id_token smaller
-        options.GetClaimsFromUserInfoEndpoint = true;
-        options.SaveTokens = true;
-    })
-    .AddJwtBearer("id5-bearer", options =>
-    {
-        options.Authority = Id5Authority;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateAudience = false
-        };
-    });
+    .AddAuthentication()
+    .AddCookie("cookie-id4", ConfigureCookieAuthenticationOptions())
+    .AddOpenIdConnect("oidc-cookie-id4", ConfigureOpenIdOptions("id4", Id4Authority, "cookie-id4"))
+    .AddJwtBearer("bearer-id4", ConfigureJwtBearerOptions(Id4Authority))
+    .AddCookie("cookie-id5", ConfigureCookieAuthenticationOptions())
+    .AddOpenIdConnect("oidc-cookie-id5", ConfigureOpenIdOptions("id5", Id5Authority, "cookie-id5"))
+    .AddJwtBearer("bearer-id5", ConfigureJwtBearerOptions(Id5Authority));
 
 builder.Services
     .AddAuthorization(options =>
     {
         options.AddPolicy(
-            "id4-cookie-policy",
+            "cookie-id4-policy",
             policy =>
             {
-                policy.AddAuthenticationSchemes("id4-cookie-oidc");
-                policy.RequireAssertion(ctx => ctx.User.Identity?.AuthenticationType == "id4-cookie");
+                policy.AddAuthenticationSchemes("oidc-cookie-id4");
+                policy.RequireAssertion(GetAuthorizationHandler(Id4Authority));
             }
         );
 
         options.AddPolicy(
-            "id4-bearer-policy",
+            "bearer-id4-policy",
             policy =>
             {
-                policy.AddAuthenticationSchemes("id4-bearer");
-                policy.RequireAssertion(ctx => ctx.User.Identity?.AuthenticationType == "id4-bearer");
+                policy.AddAuthenticationSchemes("bearer-id4");
+                policy.RequireAssertion(GetAuthorizationHandler(Id4Authority));
             }
         );
 
         options.AddPolicy(
-            "id5-cookie-policy",
+            "cookie-id5-policy",
             policy =>
             {
-                policy.AddAuthenticationSchemes("id5-cookie-oidc");
-                policy.RequireAssertion(ctx => ctx.User.Identity?.AuthenticationType == "id5-cookie");
+                policy.AddAuthenticationSchemes("oidc-cookie-id5");
+                policy.RequireAssertion(GetAuthorizationHandler(Id5Authority));
             }
         );
 
         options.AddPolicy(
-            "id5-bearer-policy",
+            "bearer-id5-policy",
             policy =>
             {
-                policy.AddAuthenticationSchemes("id5-bearer");
-                policy.RequireAssertion(ctx => ctx.User.Identity?.AuthenticationType == "id5-bearer");
+                policy.AddAuthenticationSchemes("bearer-id5");
+                policy.RequireAssertion(GetAuthorizationHandler(Id5Authority));
             }
         );
     });
@@ -154,5 +80,77 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapReverseProxy();
-app.MapGet("/.hello", () => "Hello from the Gateway!");
+app.MapGet("/.hello", async context =>
+{
+    context.Response.StatusCode = (int)HttpStatusCode.OK;
+    await context.Response.WriteAsync("Hello from the Gateway!").ConfigureAwait(false);
+});
 app.Run();
+
+
+static Func<AuthorizationHandlerContext, bool> GetAuthorizationHandler(string issuer)
+{
+    return ctx =>
+    {
+        if (!(ctx.User.Identity?.IsAuthenticated ?? false))
+            return false;
+
+        return ctx.User.Claims.Any(a => String.Equals(a.Issuer, issuer, StringComparison.OrdinalIgnoreCase));
+    };
+}
+
+static Action<OpenIdConnectOptions> ConfigureOpenIdOptions(string discriminator, string authority, string signInScheme)
+{
+    return options =>
+    {
+        options.NonceCookie.Name = $"oidc-nonce-{discriminator}.";
+        //options.NonceCookie.SameSite = SameSiteMode.Strict;
+        options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.CorrelationCookie.Name = $"oidc-correlation-{discriminator}.";
+        //options.CorrelationCookie.SameSite = SameSiteMode.Strict;
+        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.CallbackPath = $"/signin-oidc-{discriminator}";
+
+        options.SignInScheme = signInScheme;
+        options.Authority = authority;
+
+        options.ClientId = "interactive.public";
+        // options.ClientSecret = "secret";
+
+
+        // code flow + PKCE (PKCE is turned on by default)
+        options.ResponseType = "code";
+        options.UsePkce = true;
+
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+
+        // keeps id_token smaller
+        options.GetClaimsFromUserInfoEndpoint = true;
+        options.SaveTokens = true;
+    };
+}
+
+static Action<JwtBearerOptions> ConfigureJwtBearerOptions(string authority)
+{
+    return options =>
+    {
+        options.Authority = authority;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateAudience = false
+        };
+    };
+}
+
+static Action<CookieAuthenticationOptions> ConfigureCookieAuthenticationOptions()
+{
+    return options =>
+    {
+        options.CookieManager = new ChunkingCookieManager();
+        //options.Cookie.SameSite = SameSiteMode.Strict;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    };
+}
