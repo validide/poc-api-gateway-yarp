@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Net.Http.Headers;
+using Yarp.ReverseProxy.Transforms;
 
 const string Id4Authority = "https://demo.identityserver.io";
 const string Id5Authority = "https://demo.duendesoftware.com";
@@ -15,7 +17,33 @@ JwtSecurityTokenHandler.DefaultInboundClaimFilter.Clear();
 var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddReverseProxy()
-    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
+    .AddTransforms(builderContext =>
+    {
+        builderContext.AddRequestHeader("X-CustomHeaderDemo", Guid.NewGuid().ToString("N"));
+
+        // Conditionally add a transform for routes that require auth.
+        if (!String.IsNullOrEmpty(builderContext.Route.AuthorizationPolicy))
+        {
+            builderContext.AddRequestTransform(transformContext =>
+            {
+                var principalHeader = System.Text.Json.JsonSerializer.Serialize(transformContext.HttpContext.User.Claims
+                    .Select(s => new { name = s.Type, value = s.Value }));
+                transformContext.ProxyRequest.Headers.Add("X-AuthorizationPolicy", builderContext.Route.AuthorizationPolicy);
+                transformContext.ProxyRequest.Headers.Add("X-AuthorizationPrincipal", principalHeader);
+                return ValueTask.CompletedTask;
+            });
+        }
+
+        if ("api_route_id4_cookie".Equals(builderContext.Route.RouteId))
+        {
+            builderContext.AddRequestTransform(transformContext =>
+            {
+                transformContext.ProxyRequest.Headers.Remove(HeaderNames.Cookie);
+                return ValueTask.CompletedTask;
+            });
+        }
+    });
 
 builder.Services
     .AddCors(options =>
@@ -79,7 +107,41 @@ var app = builder.Build();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapReverseProxy();
+app.MapReverseProxy(proxyPipeline =>
+{
+    proxyPipeline
+        .Use(async (context, next) =>
+        {
+            // Delay all requests so we maintain quality of service and still meet SLA
+            var delay = TimeSpan.Zero;
+            var startTimes = DateTime.UtcNow;
+
+            if (context.Request.Query.TryGetValue("qos", out var qos))
+            {
+                delay = TimeSpan.FromSeconds(Int32.Parse(qos));
+            }
+
+            await next().ConfigureAwait(false);
+
+            var waitTime = delay - (DateTime.UtcNow - startTimes);
+            if (waitTime > TimeSpan.Zero)
+            {
+                await Task.Delay(waitTime).ConfigureAwait(false);
+            }
+        })
+        .Use((context, next) =>
+        {
+            // Simulate a rate limitter
+            var claims = context.Request.HttpContext.User.Claims;
+            if (claims != null && claims.FirstOrDefault(f=> f.Type == "sub")?.Value == "11")
+            {
+                context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                return context.Response.WriteAsync("Too many requests");
+            }
+
+            return next();
+        });
+});
 app.MapGet("/.hello", async context =>
 {
     context.Response.StatusCode = (int)HttpStatusCode.OK;
