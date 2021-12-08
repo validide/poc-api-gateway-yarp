@@ -6,11 +6,11 @@ YARP based API Gateway Implementation Proof Of Concept
 ```
 ./ngrok.exe http https://localhost:12080
 
-curl --location --request GET 'https://2e5b-2a02-2f0f-9202-8200-71fd-5a0e-5dca-53cb.ngrok.io/apis/aaa/bbb'
+curl --location --request GET 'https://4777-92-81-12-236.ngrok.io/apis/aaa/bbb'
 
 
-https://2e5b-2a02-2f0f-9202-8200-71fd-5a0e-5dca-53cb.ngrok.io/id5-cookie/sssssss
-https://2e5b-2a02-2f0f-9202-8200-71fd-5a0e-5dca-53cb.ngrok.io/id4-cookie/sssssss
+https://4777-92-81-12-236.ngrok.io/id5-cookie/sssssss
+https://4777-92-81-12-236.ngrok.io/id4-cookie/sssssss
 
 
 curl --location --request POST 'https://demo.identityserver.io/connect/token' \
@@ -19,7 +19,7 @@ curl --location --request POST 'https://demo.identityserver.io/connect/token' \
 --data-urlencode 'client_secret=secret' \
 --data-urlencode 'grant_type=client_credentials'
 
-curl --location --request GET 'https://2e5b-2a02-2f0f-9202-8200-71fd-5a0e-5dca-53cb.ngrok.io/id4-bearer/aaa/bbb' \
+curl --location --request GET 'https://4777-92-81-12-236.ngrok.io/id4-bearer/aaa/bbb' \
 --header 'Authorization: Bearer your_token_here'
 
 
@@ -29,10 +29,10 @@ curl --location --request POST 'https://demo.duendesoftware.com/connect/token' \
 --header 'Content-Type: application/x-www-form-urlencoded' \
 --data-urlencode 'client_id=m2m' \
 --data-urlencode 'client_secret=secret' \
---data-urlencode 'grant_type=client_credentials
+--data-urlencode 'grant_type=client_credentials'
 
 
-curl --location --request GET 'https://2e5b-2a02-2f0f-9202-8200-71fd-5a0e-5dca-53cb.ngrok.io/id5-bearer/aaa/bbb' \
+curl --location --request GET 'https://4777-92-81-12-236.ngrok.io/id5-bearer/aaa/bbb' \
 --header 'Authorization: Bearer your_token_here'
 ```
 
